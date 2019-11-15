@@ -93,7 +93,7 @@ public class LoveTropicsListener {
     private final Snowflake adminRole = Snowflake.of(473430258347933707L); // Overseer
     private final Snowflake donorRole = Snowflake.of(641706857706160128L); // Donor
     private final Snowflake whitelistRole = Snowflake.of(642422058973659147L); // Server Member
-    private final Snowflake whitelistChannel = Snowflake.of(630302038055714816L); // #server-relay
+    private final Snowflake whitelistChannel = Snowflake.of(644975720904392705L); // #java-relay
     
     private final String api;
     private final String key;
