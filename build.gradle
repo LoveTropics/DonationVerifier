@@ -1,0 +1,91 @@
+buildscript {
+    repositories {
+        maven {
+            name 'Shadow'
+            url 'http://dl.bintray.com/content/johnrengelman/gradle-plugins'
+        }
+        mavenCentral()
+        mavenLocal()
+    }
+    dependencies {
+        classpath 'org.ajoberstar:gradle-git:0.8.0'
+    }
+}
+
+plugins {
+  id 'com.github.johnrengelman.shadow' version '4.0.4'
+}
+
+apply plugin: 'maven'
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+
+archivesBaseName = "K9"
+group = 'com.lovetropics.donations'
+description = "LoveTropics Donation Verifier"
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+import org.ajoberstar.grgit.Grgit
+def repo = Grgit.open(project.file('.'))
+
+if (System.getenv('BUILD_NUMBER') != null) {
+    version += ".${System.getenv('BUILD_NUMBER')}"
+} else {
+    version += ".${repo.log().find().abbreviatedId}"
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+processResources {
+	outputs.upToDateWhen { false }
+	doLast {
+		file("${sourceSets.main.output.resourcesDir}/mcdrama/.dramaversion").text = 'git submodule --quiet foreach git rev-parse --short HEAD'.execute().in.text.trim()
+	}
+}
+
+jar {
+	from('.') {
+		include 'mcdrama/**' 
+	}
+	manifest {
+ 	   attributes 'Main-Class': 'com.lovetropics.donations.DonationVerifier',
+ 	              'Implementation-Version': project.version
+	}
+}
+
+shadowJar {
+	configurations = [project.configurations.runtimeClasspath] 
+	mergeServiceFiles()
+	dependencies {
+		exclude "*.html"
+		exclude dependency('org.projectlombok:lombok')
+	}
+}
+
+repositories {
+    mavenCentral()
+	jcenter() 
+	maven {
+		url  "https://jitpack.io"
+	}
+	maven {
+		url "https://oss.sonatype.org/content/repositories/snapshots/"
+	}
+}
+
+dependencies {
+    implementation 'com.discord4j.discord4j:discord4j-core:d714d24'
+    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'com.google.guava:guava:27.1-jre'
+    implementation 'it.unimi.dsi:fastutil:8.2.2'
+    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation "com.beust:jcommander:1.72"
+    implementation 'commons-io:commons-io:2.6'
+    
+    compileOnly 'org.projectlombok:lombok:1.18.8'
+    compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
+}
