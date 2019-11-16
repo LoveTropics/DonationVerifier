@@ -210,7 +210,9 @@ public class LoveTropicsListener {
     
     public Mono<ReactionAddEvent> onReactAdd(ReactionAddEvent event) {
         if (event.getMessageId().equals(data.getMessage()) && !event.getUserId().equals(event.getClient().getSelfId().orElse(null)) && !data.getUserStates().containsKey(event.getUserId())) {
-            return event.getUser().flatMap(u -> u.getPrivateChannel())
+            return event.getUser().flatMap(u -> u.getPrivateChannel()
+                        .doOnError(t -> log.error("Could not get private channel", t))
+                        .onErrorResume($ -> Mono.empty()))
                     .doOnNext($ -> data.getUserStates().put(event.getUserId(), State.PENDING))
                     .flatMap(this::thenSave)
                     .flatMap(pm -> pm.createMessage("To verify your donation, please reply with the email you used to donate."))
