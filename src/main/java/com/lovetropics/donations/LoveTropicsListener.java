@@ -178,7 +178,7 @@ public class LoveTropicsListener {
                 .headers(h -> h.add("Authorization", "Bearer " + key))
                 .wiretap(true)
                 .get()
-                .uri("/donor/total/?email=" + email)
+                .uri("/donor/total?email=" + email)
                 .responseSingle((resp, content) -> resp.status() == HttpResponseStatus.OK ? content.asString() : Mono.empty())
                 .map(s -> GSON.fromJson(s, JsonObject.class))
                 .map(json -> json.getAsJsonObject().get("total").getAsDouble())
