@@ -1,6 +1,8 @@
 package com.lovetropics.donations;
 
 import java.io.File;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.text.NumberFormat;
 import java.time.Duration;
 import java.time.Instant;
@@ -11,6 +13,7 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -173,16 +176,21 @@ public class LoveTropicsListener {
     }
     
     private Mono<Double> getTotalDonations(PrivateChannel channel, String email) {
-        return HttpClient.create()
-                .baseUrl(api)
-                .headers(h -> h.add("Authorization", "Bearer " + key))
-                .wiretap(true)
-                .get()
-                .uri("/donor/total?email=" + email)
-                .responseSingle((resp, content) -> resp.status() == HttpResponseStatus.OK ? content.asString() : Mono.empty())
-                .map(s -> GSON.fromJson(s, JsonObject.class))
-                .map(json -> json.getAsJsonObject().get("total").getAsDouble())
-                .defaultIfEmpty(0.0);
+        try {
+            return HttpClient.create()
+                    .baseUrl(api)
+                    .headers(h -> h.add("Authorization", "Bearer " + key))
+                    .wiretap(true)
+                    .get()
+                    .uri("/donor/total?email=" + URLEncoder.encode(email, Charsets.US_ASCII.name()))
+                    .responseSingle((resp, content) -> resp.status() == HttpResponseStatus.OK ? content.asString() : Mono.empty())
+                    .map(s -> GSON.fromJson(s, JsonObject.class))
+                    .map(json -> json.getAsJsonObject().get("total").getAsDouble())
+                    .defaultIfEmpty(0.0);
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+            return Mono.empty();
+        }
     }
     
     public Mono<ReactionAddEvent> onReactAdd(ReactionAddEvent event) {
@@ -192,7 +200,9 @@ public class LoveTropicsListener {
                         .onErrorResume($ -> Mono.empty()))
                     .doOnNext($ -> data.getUserStates().put(event.getUserId(), State.PENDING))
                     .flatMap(this::thenSave)
-                    .flatMap(pm -> pm.createMessage("To verify your donation, please reply with the email you used to donate."))
+                    .flatMap(pm -> pm.createMessage("To verify your donation, please reply with the email you used to donate.")
+                            .doOnError(t -> log.error("Could not send to private channel", t))
+                            .onErrorResume($ -> Mono.empty()))
                     .thenReturn(event);
         }
         return Mono.just(event);
