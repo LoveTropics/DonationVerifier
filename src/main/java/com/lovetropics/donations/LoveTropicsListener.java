@@ -91,7 +91,7 @@ public class LoveTropicsListener {
     private final Snowflake guild = Snowflake.of(444746940761243652L); // Love Tropics
     private final Snowflake verifyChannel = Snowflake.of(776881338858733608L); // #verify-donation
     private final Snowflake adminRole = Snowflake.of(473430258347933707L); // Overseer
-    private final Snowflake donorRole = Snowflake.of(776762719512690688L); // Donor
+    private final Snowflake donorRole = Snowflake.of(641706857706160128L); // Donor
     private final Snowflake whitelistRole = Snowflake.of(776880915715850320L); // Server Member
     
     private final String api;
