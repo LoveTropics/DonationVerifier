@@ -23,10 +23,7 @@ public class DonationVerifier {
         
         @Parameter(names = "--ltkey", description = "Authorization token to access the donation API", required = true)
         private String loveTropicsKey;
-        
-        @Parameter(names = "--bedrock", description = "Path to whitelist.json for bedrock server", required = true)
-        private String bedrockWhitelist;
-        
+
         @Parameter(names = " --mindonation", description = "Minimum donation to be whitelisted, default = 25")
         private int minDonation = 25;
     }
@@ -37,7 +34,7 @@ public class DonationVerifier {
         args = new Arguments();
         JCommander.newBuilder().addObject(args).build().parse(argv);
         
-        final LoveTropicsListener ltListener = new LoveTropicsListener(args.loveTropicsApi, args.loveTropicsKey, 25, args.bedrockWhitelist);
+        final LoveTropicsListener ltListener = new LoveTropicsListener(args.loveTropicsApi, args.loveTropicsKey, 25);
 
         DiscordClient client = new DiscordClientBuilder(args.authKey)
                 .build();

@@ -8,11 +8,9 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
@@ -58,8 +56,7 @@ public class LoveTropicsListener {
         PENDING,
         VERIFIED,
         ACCEPTED,
-        WHITELISTED_JAVA,
-        WHITELISTED_BEDROCK,
+        WHITELISTED,
         ;
     }
     
@@ -89,16 +86,14 @@ public class LoveTropicsListener {
     private final Data data = saveHelper.fromJson("data.json", Data.class);
     
     private final Snowflake guild = Snowflake.of(444746940761243652L); // Love Tropics
-    private final Snowflake verifyChannel = Snowflake.of(642421786247430194L); // #verify-donation
+    private final Snowflake verifyChannel = Snowflake.of(776881338858733608L); // #verify-donation
     private final Snowflake adminRole = Snowflake.of(473430258347933707L); // Overseer
-    private final Snowflake donorRole = Snowflake.of(641706857706160128L); // Donor
-    private final Snowflake whitelistRole = Snowflake.of(642422058973659147L); // Server Member
-    private final Snowflake whitelistChannel = Snowflake.of(644975720904392705L); // #java-relay
+    private final Snowflake donorRole = Snowflake.of(776762719512690688L); // Donor
+    private final Snowflake whitelistRole = Snowflake.of(776880915715850320L); // Server Member
     
     private final String api;
     private final String key;
     private final int minDonation;
-    private final String bedrockWhitelist;
     
     public Mono<Void> onMessage(MessageCreateEvent event) {
         return onMessageInternal(event)
@@ -148,7 +143,9 @@ public class LoveTropicsListener {
                              data.getVerifiedEmails().put(author, email);
                              if (total >= minDonation) {
                                  data.getUserStates().put(author, State.ACCEPTED);
-                                 return save().then(dm.createMessage("Congratulations! This amount qualifies for server access. Reply with your Minecraft ***Java Edition*** in-game name to be whitelisted. If you do not have or want java edition access, reply with \"none\"."));
+                                 return save()
+                                         .then(Mono.justOrEmpty(event.getMessage().getAuthor()).flatMap(u -> u.asMember(guild)).flatMap(m -> m.addRole(whitelistRole)))
+                                         .then(dm.createMessage("Congratulations! This amount qualifies for server access."));
                              } else {
                                  data.getUserStates().put(author, State.VERIFIED);
                                  return save().then(dm.createMessage("Unfortunately, this is not enough to qualify for server access. However, you have still been assigned the donor role!\n\nYou need at least " + CURRENCY_FMT.format(minDonation) + " across all donations to qualify.\n**Say anything in this chat to try again.**"));
@@ -156,26 +153,6 @@ public class LoveTropicsListener {
                         })
                         .switchIfEmpty(dm.createMessage("Sorry, there were no donations by that email. Either the email was incorrect, or you have not donated yet.\n\nYou may try **" + (3 - tries) + "** more times to enter the correct email, or enter the same email again to re-attempt."));
                 
-            } else if (state == State.ACCEPTED) {
-                String username = event.getMessage().getContent().orElse("").trim();
-                if (username.equals("none")) {
-                    data.getUserStates().put(author, State.WHITELISTED_JAVA);
-                    return save().then(dm.createMessage("Skipped whitelisting for java edition. Please send your bedrock edition username now."));
-                }
-                return getUUID(username)
-                    .flatMap(uuid -> Mono.justOrEmpty(event.getMessage().getAuthor()).flatMap(u -> u.asMember(guild)).flatMap(m -> m.addRole(whitelistRole)).thenReturn(uuid))
-                    .flatMap(uuid -> event.getClient().getChannelById(whitelistChannel).cast(TextChannel.class).flatMap(c -> c.createMessage("!whitelist add " + username)).thenReturn(uuid))
-                    .doOnNext($ -> data.getUserStates().put(author, State.WHITELISTED_JAVA))
-                    .flatMap(this::thenSave)
-                    .flatMap(uuid -> dm.createMessage("Whitelisted `" + username + "` on Java edition server.\nPlease send your bedrock edition username if you would like to be whitelisted there as well. You can ignore this message if not.\n\nHave fun!"))
-                    .switchIfEmpty(dm.createMessage("That does not appear to be a valid Minecraft account name. Try again?"));
-            } else if (state == State.WHITELISTED_JAVA) {
-                String username = event.getMessage().getContent().orElse("").trim();
-                return addBedrockWhitelist(username).thenReturn(username)
-                        .flatMap(name -> Mono.justOrEmpty(event.getMessage().getAuthor()).flatMap(u -> u.asMember(guild)).flatMap(m -> m.addRole(whitelistRole)).thenReturn(name))
-                        .doOnNext($ -> data.getUserStates().put(author, State.WHITELISTED_BEDROCK))
-                        .flatMap(this::thenSave)
-                        .flatMap(name -> dm.createMessage("Whitelisted `" + name + "` on Bedrock edition server.\n\nHave fun!"));
             }
         } else if (channel instanceof TextChannel) {
             Set<Snowflake> roles = event.getMember().map(m -> m.getRoleIds()).orElse(Collections.emptySet());
@@ -201,10 +178,10 @@ public class LoveTropicsListener {
                 .headers(h -> h.add("Authorization", "Bearer " + key))
                 .wiretap(true)
                 .get()
-                .uri("/donation/total/" + email)
+                .uri("/donor/total/?email=" + email)
                 .responseSingle((resp, content) -> resp.status() == HttpResponseStatus.OK ? content.asString() : Mono.empty())
                 .map(s -> GSON.fromJson(s, JsonObject.class))
-                .map(json -> json.getAsJsonObject().getAsJsonObject("data").get("total").getAsDouble())
+                .map(json -> json.getAsJsonObject().get("total").getAsDouble())
                 .defaultIfEmpty(0.0);
     }
     
@@ -221,45 +198,6 @@ public class LoveTropicsListener {
         return Mono.just(event);
     }
     
-    private final HttpClient MOJANG_API = HttpClient.create()
-            .baseUrl("https://api.mojang.com/users/profiles/minecraft/");
-    
-    private Mono<UUID> getUUID(String username) {
-        return MOJANG_API.get().uri("/" + username + "?at=" + Instant.now().getEpochSecond()).responseSingle((resp, body) -> {
-           if (resp.status() == HttpResponseStatus.OK) {
-               return body.asString(Charsets.UTF_8)
-                       .map(s -> GSON.fromJson(s, JsonObject.class))
-                       .map(obj -> obj.get("id").getAsString())
-                       .map(this::parseUUID);
-           }
-           return Mono.empty();
-        });
-    }
-    
-    private UUID parseUUID(String uuid) {
-        return UUID.fromString(uuid.replaceFirst("(\\w{8})(\\w{4})(\\w{4})(\\w{4})(\\w{12})", "$1-$2-$3-$4-$5"));
-    }
-    
-    private Mono<Void> addBedrockWhitelist(String username) {
-        return Mono.fromCallable(() -> {
-            Process process = new ProcessBuilder("bash", "-c", "tmux send-keys -t \"0:Bedrock Server\" Enter "
-                          + "\"whitelist add " + username + "\" Enter "
-                          + "\"whitelist reload\" Enter")
-                    .start();
-
-            Mono.when(
-                    Mono.fromRunnable(new StreamGobbler(process.getInputStream(), log::info)), 
-                    Mono.fromRunnable(new StreamGobbler(process.getErrorStream(), log::error)))
-            .subscribe();
-            
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new IllegalStateException("Whitelist process returned exit code " + exitCode);
-            }
-            return null;
-        }).then();
-    }
-
     private Mono<Void> save() {
         return Mono.fromRunnable(() -> saveHelper.writeJson("data.json", data));
     }
