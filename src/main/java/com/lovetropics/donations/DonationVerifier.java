@@ -24,7 +24,7 @@ public class DonationVerifier {
         @Parameter(names = "--ltkey", description = "Authorization token to access the donation API", required = true)
         private String loveTropicsKey;
 
-        @Parameter(names = " --mindonation", description = "Minimum donation to be whitelisted, default = 25")
+        @Parameter(names = "--mindonation", description = "Minimum donation to be whitelisted, default = 25")
         private int minDonation = 25;
     }
     

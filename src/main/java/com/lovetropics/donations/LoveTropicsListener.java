@@ -4,13 +4,9 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.text.NumberFormat;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Charsets;
@@ -23,7 +19,6 @@ import com.google.gson.annotations.SerializedName;
 
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
-import discord4j.core.object.entity.Message;
 import discord4j.core.object.entity.MessageChannel;
 import discord4j.core.object.entity.PrivateChannel;
 import discord4j.core.object.entity.TextChannel;
@@ -89,10 +84,12 @@ public class LoveTropicsListener {
     private final Data data = saveHelper.fromJson("data.json", Data.class);
     
     private final Snowflake guild = Snowflake.of(444746940761243652L); // Love Tropics
-    private final Snowflake verifyChannel = Snowflake.of(776881338858733608L); // #verify-donation
+    private final Snowflake verifyChannel = Snowflake.of(905329329095999539L); // #verify-donation
     private final Snowflake adminRole = Snowflake.of(444888468078985227L); // Overseer
-    private final Snowflake donorRole = Snowflake.of(776881284390584360L); // Donor
-    private final Snowflake whitelistRole = Snowflake.of(776762719512690688L); // Server Member
+    private final Snowflake donorRole = Snowflake.of(905854465322651678L); // Donor
+    private final Snowflake whitelistRole = Snowflake.of(906185039069466695L); // Server Member
+
+    private final ReactionEmoji react = ReactionEmoji.unicode("\uD83D\uDCB8");
     
     private final String api;
     private final String key;
@@ -158,19 +155,20 @@ public class LoveTropicsListener {
                 
             }
         } else if (channel instanceof TextChannel) {
-            Set<Snowflake> roles = event.getMember().map(m -> m.getRoleIds()).orElse(Collections.emptySet());
-            if (channel.getId().equals(verifyChannel) && roles.contains(adminRole)) {
-                if (event.getMessage().getContent().orElse("").equals("refresh")) {
-                    return channel.getMessagesBefore(Snowflake.of(Instant.now()))
-                            .timeout(Duration.ofSeconds(30))
-                            .flatMap(Message::delete)
-                            .then(channel.createMessage("React to this message to verify your donation and get your roles/whitelist."))
-                            .doOnNext(m -> data.setMessage(m.getId()))
-                            .doOnNext($ -> save())
-                            .flatMap(m -> m.addReaction(ReactionEmoji.unicode("\uD83D\uDCB8")))
-                            .onErrorResume(TimeoutException.class, e -> channel.createMessage("Sorry, the message history in this channel is too long, or otherwise took too long to load.").then());
-                }
-            }
+            // Not using this this year
+//            Set<Snowflake> roles = event.getMember().map(m -> m.getRoleIds()).orElse(Collections.emptySet());
+//            if (channel.getId().equals(verifyChannel) && roles.contains(adminRole)) {
+//                if (event.getMessage().getContent().orElse("").equals("refresh")) {
+//                    return channel.getMessagesBefore(Snowflake.of(Instant.now()))
+//                            .timeout(Duration.ofSeconds(30))
+//                            .flatMap(Message::delete)
+//                            .then(channel.createMessage("React to this message to verify your donation and get your roles/whitelist."))
+//                            .doOnNext(m -> data.setMessage(m.getId()))
+//                            .doOnNext($ -> save())
+//                            .flatMap(m -> m.addReaction(ReactionEmoji.unicode("\uD83D\uDCB8")))
+//                            .onErrorResume(TimeoutException.class, e -> channel.createMessage("Sorry, the message history in this channel is too long, or otherwise took too long to load.").then());
+//                }
+//            }
         }
         return Mono.empty();
     }
@@ -194,7 +192,10 @@ public class LoveTropicsListener {
     }
     
     public Mono<ReactionAddEvent> onReactAdd(ReactionAddEvent event) {
-        if (event.getMessageId().equals(data.getMessage()) && !event.getUserId().equals(event.getClient().getSelfId().orElse(null)) && !data.getUserStates().containsKey(event.getUserId())) {
+        if (event.getMessageId().equals(data.getMessage())
+                && event.getEmoji().equals(react)
+                && !event.getUserId().equals(event.getClient().getSelfId().orElse(null)) 
+                && !data.getUserStates().containsKey(event.getUserId())) {
             return event.getUser().flatMap(u -> u.getPrivateChannel()
                         .doOnError(t -> log.error("Could not get private channel", t))
                         .onErrorResume($ -> Mono.empty()))
