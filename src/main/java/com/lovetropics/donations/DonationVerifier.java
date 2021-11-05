@@ -34,7 +34,7 @@ public class DonationVerifier {
         args = new Arguments();
         JCommander.newBuilder().addObject(args).build().parse(argv);
         
-        final LoveTropicsListener ltListener = new LoveTropicsListener(args.loveTropicsApi, args.loveTropicsKey, 25);
+        final LoveTropicsListener ltListener = new LoveTropicsListener(args.loveTropicsApi, args.loveTropicsKey, args.minDonation);
 
         DiscordClient client = new DiscordClientBuilder(args.authKey)
                 .build();
