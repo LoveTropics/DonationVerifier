@@ -17,14 +17,14 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
 
-import discord4j.common.util.Snowflake;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
+import discord4j.core.object.entity.MessageChannel;
+import discord4j.core.object.entity.PrivateChannel;
+import discord4j.core.object.entity.TextChannel;
 import discord4j.core.object.entity.User;
-import discord4j.core.object.entity.channel.MessageChannel;
-import discord4j.core.object.entity.channel.PrivateChannel;
-import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.reaction.ReactionEmoji;
+import discord4j.core.object.util.Snowflake;
 import discord4j.rest.http.client.ClientException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import lombok.RequiredArgsConstructor;
@@ -117,7 +117,7 @@ public class LoveTropicsListener {
                 final String email;
                 int triesTmp = -1; // Where this is printed will never run if it's not set later on
                 if (state == State.PENDING) {
-                    email = event.getMessage().getContent().trim();
+                    email = event.getMessage().getContent().orElse("").trim();
                     if (MAYBE_EMAIL.matcher(email).matches()) {
                         Set<String> prevEmails = data.getAttemptedEmails().computeIfAbsent(author, $ -> Sets.newConcurrentHashSet());
                         triesTmp = data.getResets().merge(author, prevEmails.contains(email) ? 0 : 1, (i1, i2) -> Math.min(999, i1 + i2));
@@ -194,7 +194,7 @@ public class LoveTropicsListener {
     public Mono<ReactionAddEvent> onReactAdd(ReactionAddEvent event) {
         if (event.getMessageId().equals(data.getMessage())
                 && event.getEmoji().equals(react)
-                && !event.getUserId().equals(event.getClient().getSelfId()) 
+                && !event.getUserId().equals(event.getClient().getSelfId().orElse(null)) 
                 && !data.getUserStates().containsKey(event.getUserId())) {
             return event.getUser().flatMap(u -> u.getPrivateChannel()
                         .doOnError(t -> log.error("Could not get private channel", t))

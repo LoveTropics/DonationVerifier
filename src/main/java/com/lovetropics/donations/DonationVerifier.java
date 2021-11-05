@@ -9,10 +9,6 @@ import discord4j.core.DiscordClient;
 import discord4j.core.DiscordClientBuilder;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
-import discord4j.core.shard.GatewayBootstrap;
-import discord4j.gateway.GatewayOptions;
-import discord4j.gateway.intent.Intent;
-import discord4j.gateway.intent.IntentSet;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -40,24 +36,15 @@ public class DonationVerifier {
         
         final LoveTropicsListener ltListener = new LoveTropicsListener(args.loveTropicsApi, args.loveTropicsKey, args.minDonation);
 
-        DiscordClient client = DiscordClientBuilder.create(args.authKey)
+        DiscordClient client = new DiscordClientBuilder(args.authKey)
                 .build();
-
-        GatewayBootstrap<GatewayOptions> gateway = client.gateway()
-                .setEnabledIntents(IntentSet.of(Intent.GUILD_MESSAGE_REACTIONS, Intent.DIRECT_MESSAGES, Intent.DIRECT_MESSAGE_REACTIONS))
-                .withEventDispatcher(disp -> {
-                    Mono<Void> reactions = disp.on(ReactionAddEvent.class)
-                            .flatMap(ltListener::onReactAdd)
-                            .then();
-                    
-                    Mono<Void> messages = disp.on(MessageCreateEvent.class)
-                            .flatMap(ltListener::onMessage)
-                            .then();
-
-                    return Mono.when(reactions, messages);
-                });
-
         
+        // Make sure shutdown things are run, regardless of where shutdown came from
+        // The above System.exit(0) will trigger this hook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            client.logout().block();
+        }));
+                
         // Handle "stop" and any future commands
         Mono.fromCallable(() -> {
             Scanner scan = new Scanner(System.in);
@@ -72,15 +59,15 @@ public class DonationVerifier {
             }
         }).subscribeOn(Schedulers.newSingle("Console Listener"))
           .subscribe();
-
-        gateway.login()
-            .doOnNext(g -> {
-                // Make sure shutdown things are run, regardless of where shutdown came from
-                // The above System.exit(0) will trigger this hook
-                Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                    g.logout().block();
-                }));
-            }).flatMap(g -> g.onDisconnect())
-            .block();
+        
+        Mono<Void> reactions = client.getEventDispatcher().on(ReactionAddEvent.class)
+                .flatMap(ltListener::onReactAdd)
+                .then();
+        
+        Mono<Void> messages = client.getEventDispatcher().on(MessageCreateEvent.class)
+                .flatMap(ltListener::onMessage)
+                .then();
+        
+        Mono.when(reactions, messages, client.login()).block();
     }
 }

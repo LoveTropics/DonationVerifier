@@ -67,7 +67,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.discord4j:discord4j-core:3.1.8'
+    implementation 'com.discord4j.discord4j:discord4j-core:d714d24'
     implementation 'com.google.code.gson:gson:2.8.5'
     implementation 'com.google.guava:guava:27.1-jre'
     implementation 'ch.qos.logback:logback-classic:1.2.3'
