@@ -135,7 +135,7 @@ public class LoveTropicsListener {
                 }
 
                 final int tries = triesTmp;
-                return getTotalDonations(dm, email)
+                return getTotalDonations(email)
                         .filter(total -> total > 0)
                         .flatMap(total -> Mono.justOrEmpty(event.getMessage().getAuthor()).flatMap(u -> u.asMember(guild)).flatMap(m -> m.addRole(donorRole)).thenReturn(total))
                         .flatMap(total -> dm.createMessage("Your email was verified! Donation amount: " + CURRENCY_FMT.format(total)).thenReturn(total))
@@ -173,7 +173,7 @@ public class LoveTropicsListener {
         return Mono.empty();
     }
     
-    private Mono<Double> getTotalDonations(PrivateChannel channel, String email) {
+    private Mono<Double> getTotalDonations(String email) {
         try {
             return HttpClient.create()
                     .baseUrl(api)
@@ -190,20 +190,56 @@ public class LoveTropicsListener {
             return Mono.empty();
         }
     }
+
+    private Mono<Double> getTotalDonations(User user) {
+        try {
+            return HttpClient.create()
+                    .baseUrl(api)
+                    .headers(h -> h.add("Authorization", "Bearer " + key))
+                    .wiretap(true)
+                    .get()
+                    .uri("/donors/fromdiscord?discord_id=" + URLEncoder.encode(user.getUsername() + '#' + user.getDiscriminator(), Charsets.US_ASCII.name()))
+                    .responseSingle((resp, content) -> resp.status() == HttpResponseStatus.OK ? content.asString() : Mono.empty())
+                    .map(s -> GSON.fromJson(s, JsonObject.class))
+                    .map(json -> json.getAsJsonObject().get("total").getAsDouble());
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+            return Mono.empty();
+        }
+    }
     
     public Mono<ReactionAddEvent> onReactAdd(ReactionAddEvent event) {
         if (event.getMessageId().equals(data.getMessage())
                 && event.getEmoji().equals(react)
                 && !event.getUserId().equals(event.getClient().getSelfId().orElse(null)) 
                 && !data.getUserStates().containsKey(event.getUserId())) {
-            return event.getUser().flatMap(u -> u.getPrivateChannel()
+            return event.getUser()
+                    .flatMap(u -> u.getPrivateChannel()
+                        .doOnError(t -> log.error("Could not get private channel", t))
+                        .onErrorResume($ -> Mono.empty())
+                        .flatMap(dm -> getTotalDonations(u)
+                            .doOnNext(d -> data.getUserStates().put(u.getId(), State.VERIFIED))
+                            .flatMap(total -> dm.createMessage("Donation amount: " + CURRENCY_FMT.format(total)).thenReturn(total))
+                            .flatMap(total -> {
+                                 if (total >= minDonation) {
+                                     data.getUserStates().put(u.getId(), State.ACCEPTED);
+                                     return save()
+                                             .then(u.asMember(guild)).flatMap(m -> m.addRole(whitelistRole))
+                                             .then(dm.createMessage("Congratulations! This amount qualifies for server access."));
+                                 } else {
+                                     data.getUserStates().put(u.getId(), State.VERIFIED);
+                                     return save().then(dm.createMessage("Unfortunately, this is not enough to qualify for server access. However, you have still been assigned the donor role!\n\nYou need at least " + CURRENCY_FMT.format(minDonation) + " across all donations to qualify.\n**Say anything in this chat to try again.**"));
+                                 }
+                            })
+                            .switchIfEmpty(Mono.fromRunnable(() -> data.getUserStates().put(u.getId(), State.PENDING))
+                                    .then(dm.createMessage("To verify your donation, please reply with the email you used to donate.")
+                                            .doOnError(t -> log.error("Could not send to private channel", t))
+                                            .onErrorResume($ -> Mono.empty())))
+                            .flatMap(this::thenSave)
+                            .thenReturn(dm))
                         .doOnError(t -> log.error("Could not get private channel", t))
                         .onErrorResume($ -> Mono.empty()))
-                    .doOnNext($ -> data.getUserStates().put(event.getUserId(), State.PENDING))
                     .flatMap(this::thenSave)
-                    .flatMap(pm -> pm.createMessage("To verify your donation, please reply with the email you used to donate.")
-                            .doOnError(t -> log.error("Could not send to private channel", t))
-                            .onErrorResume($ -> Mono.empty()))
                     .thenReturn(event);
         }
         return Mono.just(event);
