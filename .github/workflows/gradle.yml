@@ -21,16 +21,7 @@ jobs:
       with:
         arguments: build
 
-    - name: Locate built JARfile
-      id: jar
-      run: echo "##[set-output name=jarfile;]$(find build/libs/ -name "*.jar" -not -name "*slim*" -not -name "*source*")"
-
-    - name: Set Artifact name
-      id: jarname
-      run: echo "##[set-output name=jarname;]$(find build/libs/ -name "*.jar" -not -name "*slim*" -not -name "*source*" | sed 's:.*/::')"
-
     - name: Upload artifact
       uses: actions/upload-artifact@v3
       with:
-          name: ${{ steps.jarname.outputs.jarname }}
-          path: ${{ steps.jar.outputs.jarfile }}
+          path: 'build/libs/'
