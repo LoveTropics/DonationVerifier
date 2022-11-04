@@ -84,9 +84,9 @@ public class LoveTropicsListener {
     private final Data data = saveHelper.fromJson("data.json", Data.class);
     
     private final Snowflake guild = Snowflake.of(444746940761243652L); // Love Tropics
-    private final Snowflake verifyChannel = Snowflake.of(905329329095999539L); // #verify-donation
+    private final Snowflake verifyChannel = Snowflake.of(1037017382985666590L); // #verify-donation
     private final Snowflake adminRole = Snowflake.of(444888468078985227L); // Overseer
-    private final Snowflake donorRole = Snowflake.of(905854465322651678L); // Donor
+    private final Snowflake donorRole = Snowflake.of(1037005513772240927L); // Donor
     private final Snowflake whitelistRole = Snowflake.of(906185039069466695L); // Server Member
 
     private final ReactionEmoji react = ReactionEmoji.unicode("\uD83D\uDCB8");
