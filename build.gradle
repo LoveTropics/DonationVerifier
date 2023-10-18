@@ -8,6 +8,7 @@ apply plugin: 'java'
 apply plugin: 'eclipse'
 apply plugin: 'idea'
 
+base.archivesName = 'DonationVerifier'
 group = 'com.lovetropics.donations'
 description = "LoveTropics Donation Verifier"
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
