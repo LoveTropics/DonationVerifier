@@ -19,12 +19,12 @@ import com.google.gson.annotations.SerializedName;
 
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
-import discord4j.core.object.entity.MessageChannel;
-import discord4j.core.object.entity.PrivateChannel;
-import discord4j.core.object.entity.TextChannel;
+import discord4j.core.object.entity.channel.MessageChannel;
+import discord4j.core.object.entity.channel.PrivateChannel;
+import discord4j.core.object.entity.channel.TextChannel;
 import discord4j.core.object.entity.User;
 import discord4j.core.object.reaction.ReactionEmoji;
-import discord4j.core.object.util.Snowflake;
+import discord4j.common.util.Snowflake;
 import discord4j.rest.http.client.ClientException;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ import reactor.netty.http.client.HttpClient;
 @RequiredArgsConstructor
 @Slf4j
 public class LoveTropicsListener {
-    
+
     @Value
     private static class Donation {
         int id;
@@ -47,7 +47,7 @@ public class LoveTropicsListener {
         String name;
         String email;
     }
-    
+
     private enum State {
         NONE,
         REJECTED,
@@ -57,7 +57,7 @@ public class LoveTropicsListener {
         WHITELISTED,
         ;
     }
-    
+
     @Value
     @RequiredArgsConstructor
     private static class Data {
@@ -71,18 +71,18 @@ public class LoveTropicsListener {
     }
 
     private static final Pattern MAYBE_EMAIL = Pattern.compile("\\S+@\\S+\\.\\w+");
-    
+
     private static final Gson GSON = new GsonBuilder()
             .registerTypeAdapter(Snowflake.class, new SnowflakeTypeAdapter())
             .enableComplexMapKeySerialization()
             .create();
-    
+
     private static final NumberFormat CURRENCY_FMT = NumberFormat.getCurrencyInstance(Locale.US);
-    
+
     private final SaveHelper<Data> saveHelper = new SaveHelper<>(new File("lovetropics"), GSON, new Data());
-    
+
     private final Data data = saveHelper.fromJson("data.json", Data.class);
-    
+
     private final Snowflake guild = Snowflake.of(444746940761243652L); // Love Tropics
     private final Snowflake verifyChannel = Snowflake.of(1037017382985666590L); // #verify-donation
     private final Snowflake adminRole = Snowflake.of(444888468078985227L); // Overseer
@@ -90,11 +90,11 @@ public class LoveTropicsListener {
     private final Snowflake whitelistRole = Snowflake.of(906185039069466695L); // Server Member
 
     private final ReactionEmoji react = ReactionEmoji.unicode("\uD83D\uDCB8");
-    
+
     private final String api;
     private final String key;
     private final int minDonation;
-    
+
     public Mono<Void> onMessage(MessageCreateEvent event) {
         return onMessageInternal(event)
                 .then()
@@ -106,7 +106,7 @@ public class LoveTropicsListener {
                         .flatMap(c -> c.createMessage("Unexpected error processing donations: " + t.toString()))
                         .then());
     }
-    
+
     private Mono<?> onMessageInternal(MessageCreateEvent event) {
         Snowflake author = event.getMessage().getAuthor().map(User::getId).orElse(null);
         MessageChannel channel = event.getMessage().getChannel().block();
@@ -117,7 +117,7 @@ public class LoveTropicsListener {
                 final String email;
                 int triesTmp = -1; // Where this is printed will never run if it's not set later on
                 if (state == State.PENDING) {
-                    email = event.getMessage().getContent().orElse("").trim();
+                    email = event.getMessage().getContent().trim();
                     if (MAYBE_EMAIL.matcher(email).matches()) {
                         Set<String> prevEmails = data.getAttemptedEmails().computeIfAbsent(author, $ -> Sets.newConcurrentHashSet());
                         triesTmp = data.getResets().merge(author, prevEmails.contains(email) ? 0 : 1, (i1, i2) -> Math.min(999, i1 + i2));
@@ -152,7 +152,7 @@ public class LoveTropicsListener {
                              }
                         })
                         .switchIfEmpty(dm.createMessage("Sorry, there were no donations by that email. Either the email was incorrect, or you have not donated yet.\n\nYou may try **" + (3 - tries) + "** more times to enter the correct email, or enter the same email again to re-attempt."));
-                
+
             }
         } else if (channel instanceof TextChannel) {
             // Not using this this year
@@ -172,7 +172,7 @@ public class LoveTropicsListener {
         }
         return Mono.empty();
     }
-    
+
     private Mono<Double> getTotalDonations(String email) {
         try {
             return HttpClient.create()
@@ -207,11 +207,11 @@ public class LoveTropicsListener {
             return Mono.empty();
         }
     }
-    
+
     public Mono<ReactionAddEvent> onReactAdd(ReactionAddEvent event) {
         if (event.getMessageId().equals(data.getMessage())
                 && event.getEmoji().equals(react)
-                && !event.getUserId().equals(event.getClient().getSelfId().orElse(null)) 
+                && !event.getUserId().equals(event.getClient().getSelfId())
                 && !data.getUserStates().containsKey(event.getUserId())) {
             return event.getUser()
                     .flatMap(u -> u.getPrivateChannel()
@@ -244,11 +244,11 @@ public class LoveTropicsListener {
         }
         return Mono.just(event);
     }
-    
+
     private Mono<Void> save() {
         return Mono.fromRunnable(() -> saveHelper.writeJson("data.json", data));
     }
-    
+
     private <T> Mono<T> thenSave(T val) {
         return save().thenReturn(val);
     }

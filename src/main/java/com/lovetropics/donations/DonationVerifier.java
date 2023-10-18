@@ -6,7 +6,7 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 
 import discord4j.core.DiscordClient;
-import discord4j.core.DiscordClientBuilder;
+import discord4j.core.GatewayDiscordClient;
 import discord4j.core.event.domain.message.MessageCreateEvent;
 import discord4j.core.event.domain.message.ReactionAddEvent;
 import reactor.core.publisher.Mono;
@@ -36,13 +36,13 @@ public class DonationVerifier {
         
         final LoveTropicsListener ltListener = new LoveTropicsListener(args.loveTropicsApi, args.loveTropicsKey, args.minDonation);
 
-        DiscordClient client = new DiscordClientBuilder(args.authKey)
-                .build();
-        
+        DiscordClient client = DiscordClient.create(args.authKey);
+        GatewayDiscordClient gateway = client.login().block();
+
         // Make sure shutdown things are run, regardless of where shutdown came from
         // The above System.exit(0) will trigger this hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            client.logout().block();
+            gateway.logout().block();
         }));
                 
         // Handle "stop" and any future commands
@@ -59,12 +59,12 @@ public class DonationVerifier {
             }
         }).subscribeOn(Schedulers.newSingle("Console Listener"))
           .subscribe();
-        
-        Mono<Void> reactions = client.getEventDispatcher().on(ReactionAddEvent.class)
+
+        Mono<Void> reactions = gateway.getEventDispatcher().on(ReactionAddEvent.class)
                 .flatMap(ltListener::onReactAdd)
                 .then();
         
-        Mono<Void> messages = client.getEventDispatcher().on(MessageCreateEvent.class)
+        Mono<Void> messages = gateway.getEventDispatcher().on(MessageCreateEvent.class)
                 .flatMap(ltListener::onMessage)
                 .then();
         
