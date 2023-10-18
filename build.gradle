@@ -1,6 +1,7 @@
 plugins {
 	id 'com.github.johnrengelman.shadow' version '8.1.1'
 	id 'org.ajoberstar.grgit' version '5.2.0'
+	id 'io.freefair.lombok' version '8.4'
 }
 
 apply plugin: 'java'
@@ -60,7 +61,6 @@ dependencies {
     implementation 'ch.qos.logback:logback-classic:1.2.9'
     implementation 'com.beust:jcommander:1.74'
     implementation 'commons-io:commons-io:2.7'
-    
-    compileOnly 'org.projectlombok:lombok:1.18.8'
+
     compileOnly 'com.google.code.findbugs:jsr305:3.0.2'
 }
