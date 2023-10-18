@@ -1,18 +1,8 @@
-buildscript {
-    repositories {
-        mavenCentral()
-        mavenLocal()
-    }
-    dependencies {
-        classpath 'org.ajoberstar:gradle-git:0.8.0'
-    }
-}
-
 plugins {
-    id 'com.github.johnrengelman.shadow' version '4.0.1'
+	id 'com.github.johnrengelman.shadow' version '8.1.1'
+	id 'org.ajoberstar.grgit' version '5.2.0'
 }
 
-apply plugin: 'maven'
 apply plugin: 'java'
 apply plugin: 'eclipse'
 apply plugin: 'idea'
@@ -20,11 +10,9 @@ apply plugin: 'idea'
 archivesBaseName = "DonationVerifier"
 group = 'com.lovetropics.donations'
 description = "LoveTropics Donation Verifier"
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
-import org.ajoberstar.grgit.Grgit
-def repo = Grgit.open(project.file('.'))
+def repo = grgit.open(dir: project.file('.'))
 
 if (System.getenv('BUILD_NUMBER') != null) {
     version += ".${System.getenv('BUILD_NUMBER')}"
